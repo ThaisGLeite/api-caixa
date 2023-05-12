@@ -9,6 +9,7 @@ type Caixa struct {
 	TotalPersyCoins    float64 `dynamodbav:"TotalPersyCoins,N"`
 	TotalPicPay        float64 `dynamodbav:"TotalPicPay,N"`
 	TotalPix           float64 `dynamodbav:"TotalPix,N"`
+	DummyKey           string  `dynamodbav:"DummyKey,S"`
 }
 
 type Pagamento struct {

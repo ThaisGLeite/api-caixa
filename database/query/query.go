@@ -65,6 +65,7 @@ func GetPagamentosAfterDate(dynamoClient *dynamodb.Client, log logar.Logfile, pe
 
 // InsertCaixa insere um novo caixa no banco de dados
 func InsertCaixa(dynamoClient *dynamodb.Client, log logar.Logfile, caixa model.Caixa) {
+	caixa.DummyKey = "1"
 	av, err := attributevalue.MarshalMap(caixa)
 	logar.Check(err, log)
 
