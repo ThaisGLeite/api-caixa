@@ -23,3 +23,10 @@ type Pagamento struct {
 	PersyCoins float64 `json:"Persycoins"`
 	Data       string  `json:"Data"`
 }
+
+type PagamentoReport struct {
+	Cliente         string  `json:"Cliente"`
+	FormasPagamento string  `json:"FormasPagamento"`
+	Valor           float64 `json:"Valor"`
+	Data            string  `json:"Data"`
+}
