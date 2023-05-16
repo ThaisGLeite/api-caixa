@@ -65,6 +65,7 @@ func Fechar(dynamoClient *dynamodb.Client, log logar.Logfile) []model.PagamentoR
 	caixaNovo.TotalPix = TotalPix
 	caixaNovo.TotalCredito = TotalCredito
 	caixaNovo.DinheiroFechamento = TotalDinheiro
+	caixaNovo.PagamentoReport = pagamentoReport
 	query.InsertCaixa(dynamoClient, log, caixaNovo)
 
 	return pagamentoReport

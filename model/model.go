@@ -1,15 +1,16 @@
 package model
 
 type Caixa struct {
-	Dia                string  `dynamodbav:"Dia,S"`
-	DinheiroAbertura   float64 `dynamodbav:"DinheiroAbertura,N"`
-	DinheiroFechamento float64 `dynamodbav:"DinheiroFechamento,N"`
-	TotalDebito        float64 `dynamodbav:"TotalDebito,N"`
-	TotalCredito       float64 `dynamodbav:"TotalCredito,N"`
-	TotalPersyCoins    float64 `dynamodbav:"TotalPersyCoins,N"`
-	TotalPicPay        float64 `dynamodbav:"TotalPicPay,N"`
-	TotalPix           float64 `dynamodbav:"TotalPix,N"`
-	DummyKey           string  `dynamodbav:"DummyKey,S"`
+	Dia                string            `dynamodbav:"Dia,S"`
+	DinheiroAbertura   float64           `dynamodbav:"DinheiroAbertura,N"`
+	DinheiroFechamento float64           `dynamodbav:"DinheiroFechamento,N"`
+	TotalDebito        float64           `dynamodbav:"TotalDebito,N"`
+	TotalCredito       float64           `dynamodbav:"TotalCredito,N"`
+	TotalPersyCoins    float64           `dynamodbav:"TotalPersyCoins,N"`
+	TotalPicPay        float64           `dynamodbav:"TotalPicPay,N"`
+	TotalPix           float64           `dynamodbav:"TotalPix,N"`
+	DummyKey           string            `dynamodbav:"DummyKey,S"`
+	PagamentoReport    []PagamentoReport `dynamodbav:"PagamentoReport,L"`
 }
 
 type Pagamento struct {

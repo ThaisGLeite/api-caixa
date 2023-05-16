@@ -22,6 +22,6 @@ func GetCaixa(c *gin.Context, log logar.Logfile, dynamoClient *dynamodb.Client) 
 }
 
 func Fechar(c *gin.Context, log logar.Logfile, dynamoClient *dynamodb.Client) {
-	caixa.Fechar(dynamoClient, log)
-	c.IndentedJSON(http.StatusOK, "Caixa fechado")
+	pagamentosReport := caixa.Fechar(dynamoClient, log)
+	c.IndentedJSON(http.StatusOK, pagamentosReport)
 }
