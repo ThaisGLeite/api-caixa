@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
-func Fechar(dynamoClient *dynamodb.Client, log logar.Logfile) []model.PagamentoReport {
+func Fechar(dynamoClient *dynamodb.Client, log logar.Logfile) {
 	pagamentoReport := make([]model.PagamentoReport, 0)
 	caixa := query.GetLatestCaixa(dynamoClient, log)
 	pagamentos := query.GetPagamentosAfterDate(dynamoClient, log, caixa.Dia)
@@ -55,7 +55,7 @@ func Fechar(dynamoClient *dynamodb.Client, log logar.Logfile) []model.PagamentoR
 		pagamentoReport = append(pagamentoReport, model.PagamentoReport{
 			Cliente:         pagamento.Cliente,
 			FormasPagamento: formaPagamento,
-			Valor:           pagamento.Dinheiro,
+			Valor:           valor,
 			Data:            pagamento.Data,
 		})
 	}
@@ -67,6 +67,4 @@ func Fechar(dynamoClient *dynamodb.Client, log logar.Logfile) []model.PagamentoR
 	caixaNovo.DinheiroFechamento = TotalDinheiro
 	caixaNovo.PagamentoReport = pagamentoReport
 	query.InsertCaixa(dynamoClient, log, caixaNovo)
-
-	return pagamentoReport
 }
