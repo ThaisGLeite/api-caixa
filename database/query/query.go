@@ -1,40 +1,93 @@
 package query
 
 import (
-	"api-caixa/logar"
+	"api-caixa/logger"
 	"api-caixa/model"
 	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 // GetCaixaByDate retorna o caixa de uma data específica
-func GetLatestCaixa(dynamoClient *dynamodb.Client, log logar.Logfile) model.Caixa {
-	params := &dynamodb.QueryInput{
-		TableName:              aws.String("Caixa"),
-		IndexName:              aws.String("DummyIndex"),
-		KeyConditionExpression: aws.String("DummyKey = :v1"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":v1": &types.AttributeValueMemberS{Value: "1"},
-		},
-		ScanIndexForward: aws.Bool(false),
-		Limit:            aws.Int32(1),
-	}
-	output, err := dynamoClient.Query(context.Background(), params)
-	logar.Check(err, log)
+func GetLatestCaixa(seqVal int, dynamoClient *dynamodb.Client, log *logger.Logrus) model.Caixa {
+	// Cria expressão de busca com base no numero do caixa
+	query := expression.Name("Seq").Equal(expression.Value(seqVal))
 
-	caixa := model.Caixa{}
-	err = attributevalue.UnmarshalMap(output.Items[0], &caixa)
-	logar.Check(err, log)
+	// Cosntroi uma expressão
+	expr, err := expression.NewBuilder().WithFilter(query).Build()
+
+	//Checa para erros
+	log.Check(err)
+
+	// Prepara os parametros para o ScanInput do dynamoDB
+	params := &dynamodb.ScanInput{
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		FilterExpression:          expr.Filter(),
+		TableName:                 aws.String("Caixa"),
+	}
+
+	//Faz a chamada na API do DynamoDB
+	result, err := dynamoClient.Scan(context.TODO(), params)
+	log.Check(err)
+
+	var caixa model.Caixa
+
+	err = attributevalue.UnmarshalMap(result.Items[0], &caixa)
+
+	log.Check(err)
 
 	return caixa
+
 }
 
 // GetCaixaByDate retorna o caixa de uma data específica
-func GetPagamentosAfterDate(dynamoClient *dynamodb.Client, log logar.Logfile, periodo string) []model.Pagamento {
+func GetCaixaAtual(seqVal int, dynamoClient *dynamodb.Client, log *logger.Logrus) []model.Pagamento {
+	// Cria expressão de busca com base no numero do caixa
+	query := expression.Name("Seq").Equal(expression.Value(seqVal + 1))
+
+	// Cosntroi uma expressão
+	expr, err := expression.NewBuilder().WithFilter(query).Build()
+
+	//Checa para erros
+	log.Check(err)
+
+	// Prepara os parametros para o ScanInput do dynamoDB
+	params := &dynamodb.ScanInput{
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		FilterExpression:          expr.Filter(),
+		TableName:                 aws.String("Pagamentos"),
+	}
+
+	//Faz a chamada na API do DynamoDB
+	result, err := dynamoClient.Scan(context.TODO(), params)
+	log.Check(err)
+
+	var pagamentos []model.Pagamento
+
+	for _, item := range result.Items {
+		pagamento := model.Pagamento{}
+		err := attributevalue.UnmarshalMap(item, &pagamento)
+		log.Check(err)
+		pagamentos = append(pagamentos, pagamento)
+	}
+
+	log.Check(err)
+
+	return pagamentos
+
+}
+
+// GetCaixaByDate retorna o caixa de uma data específica
+func GetPagamentosAfterDate(dynamoClient *dynamodb.Client, log *logger.Logrus, periodo string) []model.Pagamento {
 	params := &dynamodb.ScanInput{
 		TableName:        aws.String("Pagamentos"),
 		FilterExpression: aws.String("#data > :periodo"),
@@ -51,12 +104,48 @@ func GetPagamentosAfterDate(dynamoClient *dynamodb.Client, log logar.Logfile, pe
 	var pagamentos []model.Pagamento
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(context.Background())
-		logar.Check(err, log)
+		log.Check(err)
 
 		for _, item := range output.Items {
 			pagamento := model.Pagamento{}
 			err := attributevalue.UnmarshalMap(item, &pagamento)
-			logar.Check(err, log)
+			log.Check(err)
+			pagamentos = append(pagamentos, pagamento)
+		}
+	}
+	return pagamentos
+}
+
+// GetCaixaByDate retorna o caixa de uma data específica
+func GetPagamentosbySeq(dynamoClient *dynamodb.Client, log *logger.Logrus, seq int) []model.Pagamento {
+	query := expression.Name("Seq").Equal(expression.Value(seq))
+
+	// Cosntroi uma expressão
+	expr, err := expression.NewBuilder().WithFilter(query).Build()
+
+	//Checa para erros
+	log.Check(err)
+
+	// Prepara os parametros para o ScanInput do dynamoDB
+	params := &dynamodb.ScanInput{
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		FilterExpression:          expr.Filter(),
+		TableName:                 aws.String("Caixa"),
+	}
+
+	paginator := dynamodb.NewScanPaginator(dynamoClient, params)
+
+	var pagamentos []model.Pagamento
+
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(context.Background())
+		log.Check(err)
+
+		for _, item := range output.Items {
+			pagamento := model.Pagamento{}
+			err := attributevalue.UnmarshalMap(item, &pagamento)
+			log.Check(err)
 			pagamentos = append(pagamentos, pagamento)
 		}
 	}
@@ -64,15 +153,52 @@ func GetPagamentosAfterDate(dynamoClient *dynamodb.Client, log logar.Logfile, pe
 }
 
 // InsertCaixa insere um novo caixa no banco de dados
-func InsertCaixa(dynamoClient *dynamodb.Client, log logar.Logfile, caixa model.Caixa) {
-	caixa.DummyKey = "1"
+func InsertCaixa(dynamoClient *dynamodb.Client, log *logger.Logrus, caixa model.Caixa) {
 	av, err := attributevalue.MarshalMap(caixa)
-	logar.Check(err, log)
+	log.Check(err)
 
 	params := &dynamodb.PutItemInput{
 		Item:      av,
 		TableName: aws.String("Caixa"),
 	}
 	_, err = dynamoClient.PutItem(context.Background(), params)
-	logar.Check(err, log)
+	log.Check(err)
+}
+
+func GetCaixaSeq(dynamoClient *dynamodb.Client, log *logger.Logrus) (int, error) {
+
+	// Set up the scan input
+	input := &dynamodb.ScanInput{
+		TableName: aws.String("CaixaSeq"),
+		Limit:     aws.Int32(1),
+	}
+
+	// Perform the scan
+	result, err := dynamoClient.Scan(context.Background(), input)
+	if err != nil {
+		return 0, fmt.Errorf("failed to perform scan: %v", err)
+	}
+
+	if len(result.Items) == 0 {
+		return 0, fmt.Errorf("no items found in table")
+	}
+
+	// Assuming the attribute storing the number is named "NumberValue"
+	numberValue := result.Items[0]["Seq"]
+	if numberValue == nil {
+		return 0, fmt.Errorf("item does not have a 'Seq' attribute")
+	}
+
+	// Convert the value to int
+	numberStr, ok := numberValue.(*types.AttributeValueMemberN)
+	if !ok {
+		return 0, fmt.Errorf("'Seq' attribute is not a number")
+	}
+
+	number, err := strconv.Atoi(numberStr.Value)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert 'Seq' to int: %v", err)
+	}
+
+	return number - 1, nil
 }

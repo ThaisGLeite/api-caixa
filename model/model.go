@@ -9,7 +9,6 @@ type Caixa struct {
 	TotalPersyCoins    float64           `dynamodbav:"TotalPersyCoins,N"`
 	TotalPicPay        float64           `dynamodbav:"TotalPicPay,N"`
 	TotalPix           float64           `dynamodbav:"TotalPix,N"`
-	DummyKey           string            `dynamodbav:"DummyKey,S"`
 	PagamentoReport    []PagamentoReport `dynamodbav:"PagamentoReport,L"`
 }
 
@@ -26,8 +25,8 @@ type Pagamento struct {
 }
 
 type PagamentoReport struct {
-	Cliente         string  `json:"Cliente"`
-	FormasPagamento string  `json:"FormasPagamento"`
-	Valor           float64 `json:"Valor"`
-	Data            string  `json:"Data"`
+	Cliente         string   `json:"Cliente"`
+	FormasPagamento []string `json:"FormasPagamento"`
+	Valor           float64  `json:"Valor"`
+	Data            string   `json:"Dia"`
 }

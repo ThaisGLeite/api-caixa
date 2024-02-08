@@ -2,7 +2,7 @@ package main
 
 import (
 	"api-caixa/database/driver"
-	"api-caixa/logar"
+	"api-caixa/logger"
 	"api-caixa/routers"
 	"log"
 	"net/http"
@@ -10,66 +10,82 @@ import (
 
 	"github.com/apex/gateway"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/gin-gonic/gin"
 )
 
 var (
 	dynamoClient *dynamodb.Client
-	logs         logar.Logfile
+	logs         *logger.Logrus
 )
 
 // inLambda verifica se o programa está rodando em um ambiente lambda ou não e retorna um booleano
 func inLambda() bool {
-	if lambdaTaskRoot := os.Getenv("LAMBDA_TASK_ROOT"); lambdaTaskRoot != "" {
-		return true
-	}
-	return false
+	return os.Getenv("LAMBDA_TASK_ROOT") != ""
+}
+
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	logs.Info("Servidor Ok")
+	routers.ResponseOK(w, logs)
+}
+
+func handleGetCaixa(w http.ResponseWriter, r *http.Request) {
+	routers.GetCaixa(w, r, logs, dynamoClient)
+}
+
+func handleGetCaixaAtual(w http.ResponseWriter, r *http.Request) {
+	routers.GetCaixaAtual(w, r, logs, dynamoClient)
+}
+
+func handleFecharCaixa(w http.ResponseWriter, r *http.Request) {
+	routers.Fechar(w, r, logs, dynamoClient)
 }
 
 // setupRouter configura as rotas da API
-func setupRouter() *gin.Engine {
-	apiRouter := gin.Default()
 
-	apiRouter.GET("/", func(ctx *gin.Context) {
-		logs.InfoLogger.Println("Servidor Ok")
-		routers.ResponseOK(ctx, logs)
+func setupRouter() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleRoot)
+	mux.HandleFunc("/caixa/", handleGetCaixa)
+	mux.HandleFunc("/caixaatual", handleGetCaixaAtual)
+	mux.HandleFunc("/fechar/", handleFecharCaixa)
+	return mux
+}
+
+func SecureMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'")
+		next.ServeHTTP(w, r)
 	})
-
-	apiRouter.GET("/caixa", func(ctx *gin.Context) {
-		routers.GetCaixa(ctx, logs, dynamoClient)
-	})
-
-	apiRouter.GET("/fechar", func(ctx *gin.Context) {
-		routers.Fechar(ctx, logs, dynamoClient)
-	})
-
-	return apiRouter
 }
 
 // Para compilar o binario do sistema usamos:
 //
-//	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o api-caixa .
+//	GOARCH=arm64 GOOS=linux  CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap .
 //
 // para criar o zip do projeto comando:
 //
-// zip lambda.zip api-caixa
+//	zip lambda.zip bootstrap
 //
 // main.go
 func main() {
-	InfoLogger := log.New(os.Stdout, " ", log.LstdFlags|log.Lshortfile)
-	ErrorLogger := log.New(os.Stdout, " ", log.LstdFlags|log.Lshortfile)
+	// Inicializa o logger
+	logs = logger.NewGoAppTools()
 
-	logs.InfoLogger = InfoLogger
-	logs.ErrorLogger = ErrorLogger
 	var err error
-	// chamada de função para a criação da sessao de login com o banco
 	dynamoClient, err = driver.ConfigAws()
-	//chamada da função para revificar o erro retornado
-	logar.Check(err, logs)
+	logs.Check(err)
+
+	router := setupRouter()
+
+	// Wrap your router with the SecureMiddleware
+	secureMux := SecureMiddleware(router)
 
 	if inLambda() {
-		log.Fatal(gateway.ListenAndServe(":8080", setupRouter()))
+		log.Fatal(gateway.ListenAndServe(":8080", secureMux))
 	} else {
-		log.Fatal(http.ListenAndServe(":8080", setupRouter()))
+		logs.Info("Servidor Iniciado na porta 8080")
+		log.Fatal(http.ListenAndServe(":8080", secureMux))
 	}
 }
